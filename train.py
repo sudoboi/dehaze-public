@@ -1,8 +1,14 @@
 import argparse
 import pathlib
+import os
+
 import tensorflow as tf
 
 from models import *
+
+
+# Move this to Arguments later
+model_save_dir = pathlib.Path('./saved-models')
 
 
 def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_size=1, cache=False):
@@ -79,27 +85,25 @@ def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_si
     return ds
 
 
-def train(dataset, input_size=(256, 256, 3), load_path=None, save_path=None, epochs=25):
+def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epochs=25):
     '''
     Train the model in 2 phases.
     * Decom training Phase - Only DecomNet is trainable
     * Recon training Phase - Only DehazeNet and EnhanceNet are trainable
     '''
 
-    if save_path is None:
+    if save_name is None:
         raise ValueError('Model Save Path not specified!')
+    else:
+        if not os.path.exists(model_save_dir/save_name):
+            os.makedirs(model_save_dir/save_name)
 
-    if load_path is not None and not isinstance(load_path, pathlib.Path):
-        load_path = pathlib.Path(load_path)
+    if load_name is not None and not os.path.exists(model_save_dir/load_name):
+        raise ValueError('No saved model with the name \'%s\' exists!' % load_name)
 
-    if not isinstance(save_path, pathlib.Path):
-        save_path = pathlib.Path(save_path)
-
-    model = build_model(input_size=input_size)
-
-    # Load model - load only weights
-    if load_path is not None:
-        model = tf.keras.models.load_model(load_path, compile=False)
+    # Load model if required - load only weights
+    model = build_train_model(input_size=input_size, load_path=model_save_dir/load_name)
+    model.summary()
 
     ## Decom Phase
     # Make only DecomNet trainable
@@ -107,7 +111,7 @@ def train(dataset, input_size=(256, 256, 3), load_path=None, save_path=None, epo
     model.get_layer('DehazeNet').trainable = False
     model.get_layer('EnhanceNet').trainable = False
 
-    decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output)
+    decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
     
     opt_adam = tf.keras.optimizers.Adam(
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
@@ -123,7 +127,7 @@ def train(dataset, input_size=(256, 256, 3), load_path=None, save_path=None, epo
     model.get_layer('DehazeNet').trainable = True
     model.get_layer('EnhanceNet').trainable = True
 
-    recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output)
+    recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
 
     opt_adam = tf.keras.optimizers.Adam(
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
@@ -134,19 +138,24 @@ def train(dataset, input_size=(256, 256, 3), load_path=None, save_path=None, epo
     recon_train_model.fit(dataset, epochs=epochs)
 
     # Save model - save only weights
-    model.save(save_path, save_format='h5')
+    tf.keras.Model(inputs=model.get_layer('DecomNet').input, outputs=model.get_layer('DecomNet').output).save(model_save_dir/save_name/'decom.h5', save_format='h5')
+    tf.keras.Model(inputs=model.get_layer('DehazeNet').input, outputs=model.get_layer('DehazeNet').output).save(model_save_dir/save_name/'dehaze.h5', save_format='h5')
+    tf.keras.Model(inputs=model.get_layer('EnhanceNet').input, outputs=model.get_layer('EnhanceNet').output).save(model_save_dir/save_name/'enhance.h5', save_format='h5')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training Args')
-    parser.add_argument('data_path', metavar='I', default='../dataset/imgs/', help='Path to the directory containing input images')
-    parser.add_argument('label_path', metavar='L', default='../dataset/labels/', help='Path to the directory containing labels')
-    parser.add_argument('--load-path', default=None, dest='load_path', help='Path to load already saved model')
-    parser.add_argument('--save-path', default='./saved-models/default-model.h5', dest='save_path', help='Path to save the model')
+    parser.add_argument('data_path', metavar='I', default='../dataset/train/imgs/', help='Path to the train directory containing input images')
+    parser.add_argument('label_path', metavar='L', default='../dataset/train/labels/', help='Path to the train directory containing labels')
+    parser.add_argument('--load-name', default=None, dest='load_name', help='Name of already saved model to load')
+    parser.add_argument('--save-name', default='default-model', dest='save_name', help='Name to be given to trained model')
     parser.add_argument('--batch-size', type=int, default=1, dest='batch_size', help='Number of images fed to model at once')
     parser.add_argument('--epochs', type=int, default=25, dest='epochs', help='Number of epochs')
     parser.add_argument('--cache-ds', action='store_true', dest='cache', help='Whether to cache TF Dataset')
     args = parser.parse_args()
 
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
+
     dataset = get_train_dataset(input_size=(256, 256,3), imgs=args.data_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
-    train(dataset, input_size=(256, 256, 3), load_path=args.load_path, save_path=args.save_path, epochs=args.epochs)
+    train(dataset, input_size=(256, 256, 3), load_name=args.load_name, save_name=args.save_name, epochs=args.epochs)

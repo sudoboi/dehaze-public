@@ -1,4 +1,5 @@
-from .model import build_model
+from .model import build_train_model
+from .model import build_inference_model
 from .model import decom_loss
 from .model import recon_loss
 

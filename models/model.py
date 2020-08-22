@@ -1,3 +1,5 @@
+import pathlib
+
 import tensorflow as tf
 
 from .decom import DecomNet
@@ -89,7 +91,7 @@ def recon_loss():
         
         # set up loss model
         outputs = [base_model.layers[idx].output for idx in layers]
-        loss_model = Model(inputs=base_model.input, outputs=outputs)
+        loss_model = tf.keras.Model(inputs=base_model.input, outputs=outputs)
         loss_model.trainable = False
 
         # extract y true and predicted features
@@ -97,16 +99,26 @@ def recon_loss():
         y_pred_features = loss_model(y_pred)
 
         # calculate weighted loss
-        loss = weights[0] * K.mean(K.square(y_true - y_pred))
+        loss = weights[0] * tf.math.reduce_mean(tf.math.square(y_true - y_pred))
         for idx in range(0, len(weights) - 1):
-            loss += weights[idx + 1] * K.mean(K.square(y_true_features[idx] - y_pred_features[idx]))
+            loss += weights[idx + 1] * tf.math.reduce_mean(tf.math.square(y_true_features[idx] - y_pred_features[idx]))
         loss = loss / sum(weights)
         
         return loss
 
     return perceptual_loss
 
-def build_model(input_size=(256, 256, 3)):
+
+def build_train_model(input_size=(256, 256, 3), load_path=None):
+    '''
+    Builds and returns uncompiled Traing Phase model comprising of:
+    * decom
+    * dehaze
+    * enhance
+    '''
+    if load_path is not None and not isinstance(load_path, pathlib.Path):
+        load_path = pathlib.Path(load_path)
+
     # x = Hazed, Low-light input image
     # y = Dehazed, Illuminated ground truth image
     x = tf.keras.layers.Input(input_size)
@@ -115,15 +127,24 @@ def build_model(input_size=(256, 256, 3)):
     # Decomposition
     # z_R = z[:,:,:,:3]
     # z_I = z[:,:,:,3:4]
-    decomNet = DecomNet(input_size=input_size)
+    if load_path is None:
+        decomNet = DecomNet(input_size=input_size)
+    else:
+        decomNet = tf.keras.models.load_model(load_path/'decom.h5', compile=False)
     x_decom = decomNet(x)
     y_decom = decomNet(y)
     decomCombine = tf.keras.layers.Lambda(lambda z: tf.concat([z[0], z[1]], axis=-1), name='DecomCombine')((y_decom, x_decom))
 
-    dehazeNet = DehazeNet(input_size=input_size)
+    if load_path is None:
+        dehazeNet = DehazeNet(input_size=input_size)
+    else:
+        dehazeNet = tf.keras.models.load_model(load_path/'dehaze.h5', compile=False)
     x_R_dehazed = dehazeNet(x_decom[:,:,:,:3])
 
-    enhanceNet = EnhanceNet(input_size=input_size[:-1]+(4,))
+    if load_path is None:
+        enhanceNet = EnhanceNet(input_size=input_size[:-1]+(4,))
+    else:
+        enhanceNet = tf.keras.models.load_model(load_path/'enhance.h5', compile=False)
     x_I_illum = enhanceNet(x_decom)
 
     def recon_mul(dcpdn_out, enh_net_out):
@@ -133,6 +154,56 @@ def build_model(input_size=(256, 256, 3)):
 
     y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
 
-    combined_model = tf.keras.Model(inputs=[x, y], outputs=[y_hat, decomCombine])
+    combined_model = tf.keras.Model(inputs=[x, y], outputs=[y_hat, decomCombine], name='FinalModel')
 
     return combined_model
+
+
+def build_inference_model(input_size=(256, 256, 3), load_path=None):
+    '''
+    Builds and returns model for inference
+    '''
+
+    if load_path is None:
+        print('\nLoad Path not specified for Inference model!!! The returned model has random weights!\n')
+    
+    if not isinstance(load_path, pathlib.Path):
+        load_path = pathlib.Path(load_path)
+
+    # Model building starts here
+    
+    x = tf.keras.layers.Input(input_size)
+    
+    if load_path is None:
+        DecomNet = DecomNet(input_size=input_size)
+    else:
+        DecomNet = tf.keras.models.load_model(load_path/'decom.h5', compile=False)
+
+    x_decom = DecomNet(x)
+
+    if load_path is None:
+        dehazeNet = DehazeNet(input_size=input_size)
+    else:
+        dehazeNet = tf.keras.models.load_model(load_path/'dehaze.h5', compile=False)
+
+    x_R_dehazed = dehazeNet(x_decom[:,:,:,:3])
+
+    if load_path is None:
+        enhanceNet = EnhanceNet(input_size=input_size[:-1]+(4,))
+    else:
+        enhanceNet = tf.keras.models.load_model(load_path/'enhance.h5', compile=False)
+    
+    x_I_illum = enhanceNet(x_decom)
+
+    def recon_mul(dcpdn_out, enh_net_out):
+        enh_net_out_3 = tf.concat([enh_net_out, enh_net_out, enh_net_out], axis=-1)
+        recon = dcpdn_out * enh_net_out_3
+        return recon
+
+    y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
+
+    model = tf.keras.Model(inputs=x, outputs=y_hat, name='FinalModel')
+
+    # Model building ends here
+
+    return model
