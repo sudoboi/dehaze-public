@@ -101,8 +101,12 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
     if load_name is not None and not os.path.exists(model_save_dir/load_name):
         raise ValueError('No saved model with the name \'%s\' exists!' % load_name)
 
+    load_path = None
+    if load_name is not None:
+        load_path = model_save_dir/load_name
+
     # Load model if required - load only weights
-    model = build_train_model(input_size=input_size, load_path=model_save_dir/load_name)
+    model = build_train_model(input_size=input_size, load_path=load_path)
     model.summary()
 
     ## Decom Phase

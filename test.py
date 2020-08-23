@@ -90,7 +90,11 @@ def test(dataset, load_name=None):
     if load_name is not None and not os.path.exists(model_save_dir/load_name):
         raise ValueError('No saved model with the name \'%s\' exists!' % load_name)
 
-    model = build_inference_model(input_size=(256, 256,3), load_path=model_save_dir/args.load_name)
+    load_path = None
+    if load_name is not None:
+        load_path = model_save_dir/load_name
+
+    model = build_inference_model(input_size=(256, 256,3), load_path=load_path)
     
     opt_adam = tf.keras.optimizers.Adam(
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
