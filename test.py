@@ -1,11 +1,13 @@
 import argparse
+import json
 import pathlib
 import os
 
 import tensorflow as tf
 
 from models import *
-from .metrics import PSNR
+from .metrics import get_metric
+# from .metrics import get_metric_experimental
 
 
 # Move this to Arguments later
@@ -100,11 +102,19 @@ def test(dataset, load_name=None):
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
         )
     model.compile(optimizer=opt_adam, loss=recon_loss(), metrics=[
-        PSRN()
+        get_metric('psnr'),
+        get_metric('ssim')
         ])
     model.summary()
 
-    model.evaluate(dataset)
+    results = model.evaluate(dataset, return_dict=True)
+
+    print(results)
+
+    if load_path is not None:
+        with open(load_path/'test-logs.json', 'w') as fp:
+            json.dump(results, fp, sort_keys=True, indent=4)
+
 
 
 if __name__ == '__main__':
