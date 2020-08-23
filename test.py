@@ -5,6 +5,7 @@ import os
 import tensorflow as tf
 
 from models import *
+from .metrics import PSNR
 
 
 # Move this to Arguments later
@@ -94,10 +95,8 @@ def test(dataset, load_name=None):
     opt_adam = tf.keras.optimizers.Adam(
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
         )
-    raise NotImplementedError('Metrics have to be added!!!')
     model.compile(optimizer=opt_adam, loss=recon_loss(), metrics=[
-        tf.image.psnr,
-        tf.image.ssim
+        PSRN()
         ])
     model.summary()
 
