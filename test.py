@@ -100,7 +100,7 @@ def test(dataset, input_size=(256, 256,3), load_name=None):
     model.trainable = False
 
     opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.001, beta_1=0.9, beta_2=0.999
+        learning_rate=0.00001, beta_1=0.9, beta_2=0.999
         )
     model.compile(optimizer=opt_adam, loss=recon_loss(), metrics=[
         get_metric('psnr'),
