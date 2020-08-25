@@ -118,7 +118,7 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
     decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
     
     opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.001, beta_1=0.9, beta_2=0.999
+        learning_rate=0.0001, beta_1=0.9, beta_2=0.999
         )
     decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
     decom_train_model.summary()
@@ -132,9 +132,9 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
     model.get_layer('EnhanceNet').trainable = True
 
     recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
-
+    
     opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.001, beta_1=0.9, beta_2=0.999
+        learning_rate=0.0001, beta_1=0.9, beta_2=0.999
         )
     recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
     recon_train_model.summary()

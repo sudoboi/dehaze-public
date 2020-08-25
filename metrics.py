@@ -10,7 +10,7 @@ except:
 class MeanMetricWrapper(tf.keras.metrics.Metric):
 
     def __init__(self, func, name, **kwargs):
-        super(PSNR, self).__init__(name=name, **kwargs)
+        super(MeanMetricWrapper, self).__init__(name=name, **kwargs)
         self.total = self.add_weight(name='%s_total' % name, initializer='zeros')
         self.count = self.add_weight(name='%s_count' % name, initializer='zeros')
         self.func = func
@@ -31,10 +31,10 @@ class MeanMetricWrapper(tf.keras.metrics.Metric):
             num_vals = tf.math.reduce_sum(sample_weight)
         else:    
             num_vals = tf.size(values)
-        self.count.assign_add(num_vals)
+        self.count.assign_add(tf.cast(num_vals, dtype=self.count.dtype))
 
     def result(self):
-        return tf.math.div_no_nan(self.total, self.count)
+        return tf.math.divide_no_nan(self.total, self.count)
 
 
 def _psnr_metric_core(y_true, y_pred):

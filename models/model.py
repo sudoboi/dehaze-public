@@ -66,34 +66,33 @@ def decom_loss():
     return loss_fn
 
 
-def recon_loss():
+def recon_loss(model_type='vgg', input_shape=(256, 256, 3), layers=None, weights=[8, 4, 2, 1]):
     '''
     Recon Loss function adapted from Perceptual Loss
     '''
-    def perceptual_loss(y_true, _y_pred,
-        model_type='vgg', input_shape=(256, 256, 3), layers=None, weights=list((8, 4, 2, 1))):
-        
-        y_pred = _y_pred[0]
 
-        # set up base model
+    def make_perceptual_loss_model(model_type=model_type, input_shape=input_shape, layers=layers, weights=weights):
         if model_type == 'vgg':
-            from tensorflow.keras.applications.vgg16 import VGG16   
+            from tensorflow.keras.applications.vgg16 import VGG16
             base_model = VGG16(include_top=False, weights='imagenet', input_shape=input_shape)
             if layers is None:
-                layers = [2, 5, 9] 
+                layers = [2, 5, 9]
         elif model_type == 'xception':
             from tensorflow.keras.applications.xception import Xception
             base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
             if layers is None:
                 layers = [19, 42, 62]
         else:
-            raise NotImplementedError()
-        
-        # set up loss model
+            raise NotImplementedError('Perceptual Model using \'%s\' is not implemented!' % model_type)
+
+        # Set up loss model
         outputs = [base_model.layers[idx].output for idx in layers]
         loss_model = tf.keras.Model(inputs=base_model.input, outputs=outputs)
         loss_model.trainable = False
 
+        return loss_model
+
+    def perceptual_loss(y_true, y_pred):
         # extract y true and predicted features
         y_true_features = loss_model(y_true)
         y_pred_features = loss_model(y_pred)
@@ -106,6 +105,7 @@ def recon_loss():
         
         return loss
 
+    loss_model = make_perceptual_loss_model()
     return perceptual_loss
 
 
@@ -152,7 +152,7 @@ def build_train_model(input_size=(256, 256, 3), load_path=None):
         recon = dcpdn_out * enh_net_out_3
         return recon
 
-    y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
+    y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name='ReconFinal') ((x_R_dehazed, x_I_illum))
 
     combined_model = tf.keras.Model(inputs=[x, y], outputs=[y_hat, decomCombine], name='FinalModel')
 

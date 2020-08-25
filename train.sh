@@ -6,8 +6,8 @@ LABEL_PATH="../SOTS/outdoor/gt/" #"../dataset/train/labels"
 MODEL_LOAD_NAME="default-model"
 MODEL_SAVE_NAME="default-model"
 
-BATCH_SIZE=1
-EPOCHS=25
+BATCH_SIZE=2
+EPOCHS=1 #25
 
 python train.py \
     "$IMG_PATH" \

@@ -6,7 +6,7 @@ import os
 import tensorflow as tf
 
 from models import *
-from .metrics import get_metric
+from metrics import get_metric
 # from .metrics import get_metric_experimental
 
 
@@ -88,7 +88,7 @@ def get_test_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_siz
     return ds
 
 
-def test(dataset, load_name=None):
+def test(dataset, input_size=(256, 256,3), load_name=None):
     if load_name is not None and not os.path.exists(model_save_dir/load_name):
         raise ValueError('No saved model with the name \'%s\' exists!' % load_name)
 
@@ -96,8 +96,9 @@ def test(dataset, load_name=None):
     if load_name is not None:
         load_path = model_save_dir/load_name
 
-    model = build_inference_model(input_size=(256, 256,3), load_path=load_path)
-    
+    model = build_inference_model(input_size=input_size, load_path=load_path)
+    model.trainable = False
+
     opt_adam = tf.keras.optimizers.Adam(
         learning_rate=0.001, beta_1=0.9, beta_2=0.999
         )
@@ -127,4 +128,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = get_test_dataset(input_size=(256, 256,3), imgs=args.data_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
-    test(model, dataset, load_name=args.load_name)
+    test(dataset, input_size=(256, 256,3), load_name=args.load_name)
