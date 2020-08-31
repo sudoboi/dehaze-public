@@ -76,7 +76,7 @@ def get_test_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_siz
         # Model requires label also to be passed as input
         return (img, label)
 
-    ds = ds.map(lambda img, label: _preprocess_images(img, label))
+    ds = ds.map(lambda img, label: _preprocess_images(img, label), num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     # Batching and Optimizations
     if cache:
