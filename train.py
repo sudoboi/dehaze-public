@@ -35,7 +35,7 @@ def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_si
         # Reside-Dehaze dataset specific file-naming exploit
         file_id = tf.strings.split(file_name, '_')[0]
 
-        return tf.strings.join([str(labels)+'/', file_id, '.png'])
+        return tf.strings.join([str(labels)+'/', file_id, '.jpg']) #'png'
         #return tf.strings.format('%s/{}.{}'%str(labels), (file_id, ext))
 
     def _get_img(path):
@@ -73,7 +73,7 @@ def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_si
         # Model requires label also to be passed as input
         return ((img, label), label)
 
-    ds = ds.map(lambda img, label: _preprocess_images(img, label), , num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    ds = ds.map(lambda img, label: _preprocess_images(img, label), num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     # Batching and Optimizations
     if cache:
@@ -118,7 +118,7 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
     decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
     
     opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.00001, beta_1=0.9, beta_2=0.999
+        learning_rate=0.00025, beta_1=0.9, beta_2=0.999
         )
     decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
     decom_train_model.summary()
@@ -134,7 +134,7 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
     recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
     
     opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.00001, beta_1=0.9, beta_2=0.999
+        learning_rate=0.00025 beta_1=0.9, beta_2=0.999
         )
     recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
     recon_train_model.summary()
