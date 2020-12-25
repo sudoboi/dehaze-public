@@ -1,59 +1,52 @@
 import tensorflow as tf
 
 
+def conv_block(m, dim, acti, bn, res, do=0):
+    n = Conv2D(dim, 3, activation=acti, padding='same')(m)
+    n = BatchNormalization()(n) if bn else n
+    n = Dropout(do)(n) if do else n
+    n = Conv2D(dim, 3, activation=acti, padding='same')(n)
+    n = BatchNormalization()(n) if bn else n
+    return Concatenate()([m, n]) if res else n
+
+
+def level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
+    if depth > 0:
+        n = conv_block(m, dim, acti, bn, res)
+        m = MaxPooling2D()(n) if mp else Conv2D(dim, 3, strides=2, padding='same')(n)
+        m = level_block(m, int(inc*dim), depth-1, inc, acti, do, bn, mp, up, res)
+        if up:
+            m = UpSampling2D()(m)
+            m = Conv2D(dim, 2, activation=acti, padding='same')(m)
+        else:
+            m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same')(m)
+        n = Concatenate()([n, m])
+        m = conv_block(n, dim, acti, bn, res)
+    else:
+        m = conv_block(m, dim, acti, bn, res, do)
+    return m
+
+
+def UNet(img_shape, out_ch=1, start_ch=64, depth=4, inc_rate=2., activation='relu', 
+         dropout=0.5, batchnorm=False, maxpool=True, upconv=True, residual=False):
+    i = Input(shape=img_shape)
+    o = level_block(i, start_ch, depth, inc_rate, activation, dropout, batchnorm, maxpool, upconv, residual)
+    o = Conv2D(out_ch, 1, activation='tanh')(o)
+    return Model(inputs=i, outputs=o)
+
 def DecomNet(inputs=None, input_size=(256, 256, 3)):
     '''
     UNet for the normal 3 channel images and output is Reflectance (3C) and Illumination (1C).
     '''
-    if inputs is None:
-        inputs = tf.keras.layers.Input(input_size)
-
-    conv1 = tf.keras.layers.Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
-    conv1 = tf.keras.layers.Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv1)
-    pool1 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(conv1)
-    
-    conv2 = tf.keras.layers.Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool1)
-    conv2 = tf.keras.layers.Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv2)
-    pool2 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(conv2)
-    
-    conv3 = tf.keras.layers.Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool2)
-    conv3 = tf.keras.layers.Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv3)
-    pool3 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(conv3)
-    
-    conv4 = tf.keras.layers.Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool3)
-    conv4 = tf.keras.layers.Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv4)
-    drop4 = tf.keras.layers.Dropout(0.5)(conv4)
-    pool4 = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(drop4)
-
-    conv5 = tf.keras.layers.Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool4)
-    conv5 = tf.keras.layers.Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv5)
-    drop5 = tf.keras.layers.Dropout(0.5)(conv5)
-
-    up6 = tf.keras.layers.Conv2D(512, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(tf.keras.layers.UpSampling2D(size = (2,2))(drop5))
-    merge6 = tf.keras.layers.Concatenate(axis = 3)([drop4,up6])
-    conv6 = tf.keras.layers.Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge6)
-    conv6 = tf.keras.layers.Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv6)
-
-    up7 = tf.keras.layers.Conv2D(256, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(tf.keras.layers.UpSampling2D(size = (2,2))(conv6))
-    merge7 = tf.keras.layers.Concatenate(axis = 3)([conv3,up7])
-    conv7 = tf.keras.layers.Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge7)
-    conv7 = tf.keras.layers.Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv7)
-
-    up8 = tf.keras.layers.Conv2D(128, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(tf.keras.layers.UpSampling2D(size = (2,2))(conv7))
-    merge8 = tf.keras.layers.Concatenate(axis = 3)([conv2,up8])
-    conv8 = tf.keras.layers.Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge8)
-    conv8 = tf.keras.layers.Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv8)
-
-    up9 = tf.keras.layers.Conv2D(64, 2, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(tf.keras.layers.UpSampling2D(size = (2,2))(conv8))
-    merge9 = tf.keras.layers.Concatenate(axis = 3)([conv1,up9])
-    
-    conv9 = tf.keras.layers.Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge9)
-    conv9 = tf.keras.layers.Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv9)
-    conv9 = tf.keras.layers.Conv2D(4, 3, name = 'ref', activation = 'tanh', padding = 'same', kernel_initializer = 'he_normal')(conv9)
-
-    model = tf.keras.Model(inputs = inputs, outputs = conv9, name='DecomNet')
-    
-    return model
+    unet = UNet(
+        input_size,
+        out_ch=4,
+        start_ch=64,
+        batchnorm=True,
+        residual=True
+        )
+    outputs = unet(inputs)
+    return tf.keras.Model(inputs=inputs, outputs=outputs, name='DecomNet')
 
 
 if __name__ == '__main__':
