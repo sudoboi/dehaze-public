@@ -1,4 +1,17 @@
 import tensorflow as tf
+from tensorflow.keras import (
+    Input,
+    Model
+    )
+from tensorflow.keras.layers import (
+    Conv2D,
+    BatchNormalization,
+    Dropout,
+    Concatenate,
+    MaxPooling2D,
+    UpSampling2D,
+    Conv2DTranspose
+    )
 
 
 def conv_block(m, dim, acti, bn, res, do=0):
@@ -45,8 +58,11 @@ def DecomNet(inputs=None, input_size=(256, 256, 3)):
         batchnorm=True,
         residual=True
         )
-    outputs = unet(inputs)
-    return tf.keras.Model(inputs=inputs, outputs=outputs, name='DecomNet')
+    if inputs is not None:
+        outputs = unet(inputs)
+        return tf.keras.Model(inputs=inputs, outputs=outputs, name='DecomNet')
+    else:
+        return tf.keras.Model(inputs=unet.input, outputs=unet.output, name='DecomNet')
 
 
 if __name__ == '__main__':
