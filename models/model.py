@@ -135,7 +135,7 @@ def build_train_model(input_size=(256, 256, 3), load_path=None):
         decomNet = tf.keras.models.load_model(load_path/'decom.h5', compile=False)
     x_decom = decomNet(x)
     y_decom = decomNet(y)
-    decomCombine = tf.keras.layers.Lambda(lambda z: tf.concat([z[0], z[1], x, y], axis=-1), name='DecomCombine')((y_decom, x_decom))
+    decomCombine = tf.keras.layers.Lambda(lambda z: tf.concat([z[0], z[1], z[2], z[3]], axis=-1), name='DecomCombine')((y_decom, x_decom, x, y))
 
     if load_path is None:
         dehazeNet = DehazeNet(input_size=input_size)
