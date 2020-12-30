@@ -33,7 +33,9 @@ def decom_loss():
 
     def loss_fn(_y_true, _y_pred):
         y_true = _y_pred[:,:,:,:4]
-        y_pred = _y_pred[:,:,:,4:]
+        y_pred = _y_pred[:,:,:,4:8]
+        img_low = _y_pred[:,:,:,8:11]
+        img_high = _y_pred[:,:,:,11:14]
 
         I_low = y_pred[:,:,:,3:4]
         I_high = y_true[:,:,:,3:4]
@@ -47,10 +49,10 @@ def decom_loss():
         output_I_low = I_low_3
 
         # loss
-        recon_loss_low = tf.math.reduce_mean(tf.math.abs(R_low * I_low_3))
-        recon_loss_high = tf.math.reduce_mean(tf.math.abs(R_high * I_high_3))
-        recon_loss_mutal_low = tf.math.reduce_mean(tf.math.abs(R_high * I_low_3))
-        recon_loss_mutal_high = tf.math.reduce_mean(tf.math.abs(R_low * I_high_3 ))
+        recon_loss_low = tf.math.reduce_mean(tf.math.abs(R_low * I_low_3 - img_low))
+        recon_loss_high = tf.math.reduce_mean(tf.math.abs(R_high * I_high_3 - img_high))
+        recon_loss_mutal_low = tf.math.reduce_mean(tf.math.abs(R_high * I_low_3 - img_low))
+        recon_loss_mutal_high = tf.math.reduce_mean(tf.math.abs(R_low * I_high_3 - img_high))
         equal_R_loss = tf.math.reduce_mean(tf.math.abs(R_low - R_high))
 
         Ismooth_loss_low = smooth(I_low, R_low)
@@ -133,7 +135,7 @@ def build_train_model(input_size=(256, 256, 3), load_path=None):
         decomNet = tf.keras.models.load_model(load_path/'decom.h5', compile=False)
     x_decom = decomNet(x)
     y_decom = decomNet(y)
-    decomCombine = tf.keras.layers.Lambda(lambda z: tf.concat([z[0], z[1]], axis=-1), name='DecomCombine')((y_decom, x_decom))
+    decomCombine = tf.keras.layers.Lambda(lambda z: tf.concat([z[0], z[1], x, y], axis=-1), name='DecomCombine')((y_decom, x_decom))
 
     if load_path is None:
         dehazeNet = DehazeNet(input_size=input_size)
