@@ -49,7 +49,7 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
     if load_name is not None:
         load_path = model_save_dir/load_name
 
-    model = build_inference_model(input_size=input_size, load_path=load_path)
+    model = build_vis_model(input_size=input_size, load_path=load_path)
     model.trainable = False
 
     # opt_adam = tf.keras.optimizers.Adam(
@@ -65,13 +65,19 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
         img, orig_shape, img_name = datum
         # Reshape `img` to (256, 256, 3). Default method: Nearest Neighbour
         img = img.resize(input_size[:2])
-        img = tf.keras.preprocessing.image.img_to_array(img)
+        # img = tf.keras.preprocessing.image.img_to_array(img)
+        img = np.array(img)[:,:,:3].astype(float) / 255.
+        # Remove alpha channel and convert to float
+        img = img*2 - 1;
         img = np.expand_dims(img, axis=0)
 
         img = model(img, training=False)
 
         img = np.squeeze(img, axis=0)
-        img = tf.keras.preprocessing.image.array_to_img(img)
+        # img = tf.keras.preprocessing.image.array_to_img(img)
+        img = (img + 1) / 2.
+        img = np.clip(img * 255., 0., 255.).astype('uint8')
+        img = Image.fromarray(img)
         img = img.resize(orig_shape)
 
         # Save image

@@ -161,6 +161,56 @@ def build_train_model(input_size=(256, 256, 3), load_path=None):
     return combined_model
 
 
+def build_vis_model(input_size=(256, 256, 3), load_path=None):
+    '''
+    Builds and returns model for inference
+    '''
+
+    if load_path is None:
+        print('\nLoad Path not specified for Visualization model!!! The returned model has random weights!\n')
+    
+    if not isinstance(load_path, pathlib.Path):
+        load_path = pathlib.Path(load_path)
+
+    # Model building starts here
+    
+    x = tf.keras.layers.Input(input_size)
+    
+    if load_path is None:
+        DecomNet = DecomNet(input_size=input_size)
+    else:
+        DecomNet = tf.keras.models.load_model(load_path/'decom.h5', compile=False)
+
+    x_decom = DecomNet(x)
+
+    if load_path is None:
+        dehazeNet = DehazeNet(input_size=input_size)
+    else:
+        dehazeNet = tf.keras.models.load_model(load_path/'dehaze.h5', compile=False)
+
+    x_R_dehazed = dehazeNet(x_decom[:,:,:,:3])
+
+    if load_path is None:
+        enhanceNet = EnhanceNet(input_size=input_size[:-1]+(4,))
+    else:
+        enhanceNet = tf.keras.models.load_model(load_path/'enhance.h5', compile=False)
+    
+    x_I_illum = enhanceNet(x_decom)
+
+    def recon_mul(dcpdn_out, enh_net_out):
+        enh_net_out_3 = tf.concat([enh_net_out, enh_net_out, enh_net_out], axis=-1)
+        recon = dcpdn_out * enh_net_out_3
+        return recon
+
+    y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
+
+    model = tf.keras.Model(inputs=x, outputs=[y_hat, x_decom[:,:,:,:3], x_decom[:,:,:,3]], name='FinalModel')
+
+    # Model building ends here
+
+    return model
+
+
 def build_inference_model(input_size=(256, 256, 3), load_path=None):
     '''
     Builds and returns model for inference
