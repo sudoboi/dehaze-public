@@ -61,27 +61,47 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
     #     ])
     model.summary()
 
-    for datum in vis_data['data']:
-        img, orig_shape, img_name = datum
-        # Reshape `img` to (256, 256, 3). Default method: Nearest Neighbour
+    def img2arr(img):
+        """
+        `img` is PIL Image
+        Reshape `img` to (256, 256, 3). Default method: Nearest Neighbour
+        """
         img = img.resize(input_size[:2])
         # img = tf.keras.preprocessing.image.img_to_array(img)
         img = np.array(img)[:,:,:3].astype(float) / 255.
         # Remove alpha channel and convert to float
         img = img*2 - 1;
         img = np.expand_dims(img, axis=0)
+        return img
 
-        img = model(img, training=False)
-
+    def arr2img(img):
+        """
+        `img` is tf.tensor array
+        """
+        img = img.numpy()
         img = np.squeeze(img, axis=0)
         # img = tf.keras.preprocessing.image.array_to_img(img)
         img = (img + 1) / 2.
         img = np.clip(img * 255., 0., 255.).astype('uint8')
         img = Image.fromarray(img)
         img = img.resize(orig_shape)
+        return img
 
+    for datum in vis_data['data']:
+        img, orig_shape, img_name = datum
+        
+        img = img2arr(img)
+
+        [img, R_img, I_img] = model(img, training=False)
+
+        img = arr2img(img)
+        R_img = arr2img(R_img)
+        I_img = arr2img(I_img)
+        
         # Save image
         img.save(vis_data['dir']/('OUT_%s'%img_name))
+        R_img.save(vis_data['dir']/('OUT_R_%s'%img_name))
+        I_img.save(vis_data['dir']/('OUT_I_%s'%img_name))
 
     print('Saved output images.')
 
