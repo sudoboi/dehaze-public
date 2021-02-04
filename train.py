@@ -85,7 +85,7 @@ def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_si
     return ds
 
 
-def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epochs=25):
+def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epochs_p1=25, epochs_p2=25):
     '''
     Train the model in 2 phases.
     * Decom training Phase - Only DecomNet is trainable
@@ -102,46 +102,86 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
         raise ValueError('No saved model with the name \'%s\' exists!' % load_name)
 
     load_path = None
+    load_phase = None
     if load_name is not None:
-        load_path = model_save_dir/load_name
+        load_path = model_save_dir/load_name/'checkpoints'
+        
+        for file in os.listdir(load_path):
+            # If there is a model checkpoint, set 'phase' flag appropriately
+            if file == 'phase2.chkpnt':
+                load_phase = 2
+                break
 
-    # Load model if required - load only weights
-    model = build_train_model(input_size=input_size, load_path=load_path)
-    model.summary()
+        if load_phase is None:
+            for file in os.listdir(load_path):
+                if file == 'phase1.chkpnt':
+                    load_phase = 1
+                    break
 
-    ## Decom Phase
-    # Make only DecomNet trainable
-    model.get_layer('DecomNet').trainable = True
-    model.get_layer('DehazeNet').trainable = False
-    model.get_layer('EnhanceNet').trainable = False
+    if load_phase is None:
+        #Obsolete: Load model if required - load only weights
+        model = build_train_model(input_size=input_size) #Obsolete: load_path=load_path
+        model.summary()
 
-    decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
-    
-    opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.00025, beta_1=0.9, beta_2=0.999
-        )
-    decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
-    decom_train_model.summary()
-    
-    decom_train_model.fit(dataset, epochs=epochs)
+    if load_phase in [None, 1]:
+        ## Decom Phase
+        if load_phase is None:
+            # Make only DecomNet trainable
+            model.get_layer('DecomNet').trainable = True
+            model.get_layer('DehazeNet').trainable = False
+            model.get_layer('EnhanceNet').trainable = False
 
-    ## Recon Phase
-    # Make only DehazeNet and EnhanceNet trainable
-    model.get_layer('DecomNet').trainable = False
-    model.get_layer('DehazeNet').trainable = True
-    model.get_layer('EnhanceNet').trainable = True
+            decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
+            
+            opt_adam = tf.keras.optimizers.Adam(
+                learning_rate=0.00025, beta_1=0.9, beta_2=0.999
+                )
+            decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
+        
+        else:
+            decom_train_model = tf.keras.models.load_model(load_path/'phase1.chkpnt', compile=True, custom_objects={'loss': decom_loss()})
 
-    recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
-    
-    opt_adam = tf.keras.optimizers.Adam(
-        learning_rate=0.00025, beta_1=0.9, beta_2=0.999
-        )
-    recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
-    recon_train_model.summary()
+        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase1.chkpnt'
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_filepath,
+            save_weights_only=False,
+            monitor='loss',
+            mode='min',
+            save_best_only=True)
 
-    recon_train_model.fit(dataset, epochs=epochs)
+        decom_train_model.summary()
+        decom_train_model.fit(dataset, epochs=epochs_p1, callbacks=[model_checkpoint_callback])
 
-    # Save model - save only weights
+    if load_phase in [None, 2]:
+        ## Recon Phase
+        if load_phase is None:
+            # Make only DehazeNet and EnhanceNet trainable
+            model.get_layer('DecomNet').trainable = False
+            model.get_layer('DehazeNet').trainable = True
+            model.get_layer('EnhanceNet').trainable = True
+
+            recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
+            
+            opt_adam = tf.keras.optimizers.Adam(
+                learning_rate=0.00025, beta_1=0.9, beta_2=0.999
+                )
+            recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
+
+        else:
+            recon_train_model = tf.keras.models.load_model(load_path/'phase2.chkpnt', compile=True, custom_objects={'loss': recon_loss()})
+        
+        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase2.chkpnt'
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_filepath,
+            save_weights_only=False,
+            monitor='loss',
+            mode='min',
+            save_best_only=True)
+
+        recon_train_model.summary()
+        recon_train_model.fit(dataset, epochs=epochs_p2, callbacks=[model_checkpoint_callback])
+
+    # Save model for inference - save only weights
     tf.keras.Model(inputs=model.get_layer('DecomNet').input, outputs=model.get_layer('DecomNet').output).save(model_save_dir/save_name/'decom.h5', save_format='h5')
     tf.keras.Model(inputs=model.get_layer('DehazeNet').input, outputs=model.get_layer('DehazeNet').output).save(model_save_dir/save_name/'dehaze.h5', save_format='h5')
     tf.keras.Model(inputs=model.get_layer('EnhanceNet').input, outputs=model.get_layer('EnhanceNet').output).save(model_save_dir/save_name/'enhance.h5', save_format='h5')
@@ -154,12 +194,16 @@ if __name__ == '__main__':
     parser.add_argument('--load-name', default=None, dest='load_name', help='Name of already saved model to load')
     parser.add_argument('--save-name', default='default-model', dest='save_name', help='Name to be given to trained model')
     parser.add_argument('--batch-size', type=int, default=1, dest='batch_size', help='Number of images fed to model at once')
-    parser.add_argument('--epochs', type=int, default=25, dest='epochs', help='Number of epochs')
+    parser.add_argument('--epochs_p1', type=int, default=25, dest='epochs_p1', help='Number of epochs for phase 1 training')
+    parser.add_argument('--epochs_p2', type=int, default=25, dest='epochs_p2', help='Number of epochs for phase 2 training')
     parser.add_argument('--cache-ds', action='store_true', dest='cache', help='Whether to cache TF Dataset')
     args = parser.parse_args()
 
     if not os.path.exists(model_save_dir):
         os.makedirs(model_save_dir)
 
+    if args.load_name == 'None':
+        args.load_name = None
+
     dataset = get_train_dataset(input_size=(256, 256,3), imgs=args.data_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
-    train(dataset, input_size=(256, 256, 3), load_name=args.load_name, save_name=args.save_name, epochs=args.epochs)
+    train(dataset, input_size=(256, 256, 3), load_name=args.load_name, save_name=args.save_name, epochs_p1=args.epochs_p1, epochs_p2=args.epochs_p2)
