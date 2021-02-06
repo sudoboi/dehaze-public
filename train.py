@@ -118,35 +118,33 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
                     load_phase = 1
                     break
 
-    if load_phase is None:
-        #Obsolete: Load model if required - load only weights
-        model = build_train_model(input_size=input_size) #Obsolete: load_path=load_path
-        model.summary()
+    model = build_train_model(input_size=input_size)
+    model.summary()
 
     if load_phase in [None, 1]:
         ## Decom Phase
-        if load_phase is None:
-            # Make only DecomNet trainable
-            model.get_layer('DecomNet').trainable = True
-            model.get_layer('DehazeNet').trainable = False
-            model.get_layer('EnhanceNet').trainable = False
+        # Make only DecomNet trainable
+        model.get_layer('DecomNet').trainable = True
+        model.get_layer('DehazeNet').trainable = False
+        model.get_layer('EnhanceNet').trainable = False            
 
-            decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
-            
-            opt_adam = tf.keras.optimizers.Adam(
-                learning_rate=0.00025, beta_1=0.9, beta_2=0.999
-                )
-            decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
+        decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
         
-        else:
-            decom_train_model = tf.keras.models.load_model(load_path/'phase1.chkpnt', compile=True, custom_objects={'loss': decom_loss()})
+        if load_phase == 1:
+            decom_train_model.load_weights(load_path/'phase1.chkpnt')
+            
+        opt_adam = tf.keras.optimizers.Adam(
+            learning_rate=1e-6, beta_1=0.9, beta_2=0.999
+            )
+        decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
 
         checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase1.chkpnt'
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
-            save_weights_only=False,
+            save_weights_only=True, # False
             monitor='loss',
             mode='min',
+            verbose=1,
             save_best_only=True)
 
         decom_train_model.summary()
@@ -154,28 +152,28 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
 
     if load_phase in [None, 2]:
         ## Recon Phase
-        if load_phase is None:
-            # Make only DehazeNet and EnhanceNet trainable
-            model.get_layer('DecomNet').trainable = False
-            model.get_layer('DehazeNet').trainable = True
-            model.get_layer('EnhanceNet').trainable = True
+        # Make only DehazeNet and EnhanceNet trainable
+        model.get_layer('DecomNet').trainable = False
+        model.get_layer('DehazeNet').trainable = True
+        model.get_layer('EnhanceNet').trainable = True
 
-            recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
+        recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
+
+        if load_phase == 2:
+            recon_train_model.load_weights(load_path/'phase2.chkpnt')
             
-            opt_adam = tf.keras.optimizers.Adam(
-                learning_rate=0.00025, beta_1=0.9, beta_2=0.999
+        opt_adam = tf.keras.optimizers.Adam(
+                learning_rate=1e-6, beta_1=0.9, beta_2=0.999
                 )
-            recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
+        recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
 
-        else:
-            recon_train_model = tf.keras.models.load_model(load_path/'phase2.chkpnt', compile=True, custom_objects={'loss': recon_loss()})
-        
         checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase2.chkpnt'
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
-            save_weights_only=False,
+            save_weights_only=True, # False
             monitor='loss',
             mode='min',
+            verbose=1,
             save_best_only=True)
 
         recon_train_model.summary()
