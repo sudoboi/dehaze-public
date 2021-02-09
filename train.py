@@ -64,8 +64,8 @@ def get_train_dataset(input_size=(256, 256, 3), imgs=None, labels=None, batch_si
 
         combined = combined*2 - 1
         
-        combined = tf.image.resize(combined, (286, 286), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-        combined = tf.image.random_crop(combined, (256, 256, 6))
+        combined = tf.image.resize(combined, tuple(x+30 for x in input_size[:2]), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        combined = tf.image.random_crop(combined, input_size[:2]+(6,))
 
         img = combined[:,:,:3]
         label = combined[:,:,3:]
@@ -108,13 +108,13 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
         
         for file in os.listdir(load_path):
             # If there is a model checkpoint, set 'phase' flag appropriately
-            if file == 'phase2.chkpnt':
+            if file == 'phase2.weights':
                 load_phase = 2
                 break
 
         if load_phase is None:
             for file in os.listdir(load_path):
-                if file == 'phase1.chkpnt':
+                if file == 'phase1.weights':
                     load_phase = 1
                     break
 
@@ -130,18 +130,21 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
 
         decom_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('DecomCombine').output, name='DecomTrainerModel')
         
+        LR = 2.5e-4
+
         if load_phase == 1:
-            decom_train_model.load_weights(load_path/'phase1.chkpnt')
+            decom_train_model.load_weights(load_path/'phase1.weights')
+            LR = 1e-6
             
         opt_adam = tf.keras.optimizers.Adam(
             learning_rate=1e-6, beta_1=0.9, beta_2=0.999
             )
         decom_train_model.compile(optimizer=opt_adam, loss=decom_loss())
 
-        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase1.chkpnt'
+        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase1.weights'
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
-            save_weights_only=True, # False
+            save_weights_only=True,
             monitor='loss',
             mode='min',
             verbose=1,
@@ -150,7 +153,7 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
         decom_train_model.summary()
         decom_train_model.fit(dataset, epochs=epochs_p1, callbacks=[model_checkpoint_callback])
 
-    if load_phase in [None, 2]:
+    if load_phase in [None, 1, 2]:
         ## Recon Phase
         # Make only DehazeNet and EnhanceNet trainable
         model.get_layer('DecomNet').trainable = False
@@ -159,18 +162,20 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
 
         recon_train_model = tf.keras.Model(inputs=model.input, outputs=model.get_layer('ReconFinal').output, name='ReconTrainerModel')
 
+        LR = 2.5e-4
+
         if load_phase == 2:
-            recon_train_model.load_weights(load_path/'phase2.chkpnt')
+            recon_train_model.load_weights(load_path/'phase2.weights')
             
         opt_adam = tf.keras.optimizers.Adam(
                 learning_rate=1e-6, beta_1=0.9, beta_2=0.999
                 )
-        recon_train_model.compile(optimizer=opt_adam, loss=recon_loss())
+        recon_train_model.compile(optimizer=opt_adam, loss=recon_loss(input_shape=input_size[:2]+(3,)))
 
-        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase2.chkpnt'
+        checkpoint_filepath = model_save_dir/save_name/'checkpoints'/'phase2.weights'
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
-            save_weights_only=True, # False
+            save_weights_only=True,
             monitor='loss',
             mode='min',
             verbose=1,
@@ -187,7 +192,8 @@ def train(dataset, input_size=(256, 256, 3), load_name=None, save_name=None, epo
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training Args')
-    parser.add_argument('data_path', metavar='I', default='../dataset/train/imgs/', help='Path to the train directory containing input images')
+    parser.add_argument('data1_path', metavar='I', default='../dataset/train/imgs/', help='Path to the train directory containing input images for phase 1')
+    parser.add_argument('data2_path', metavar='I', default='../dataset/train/imgs/', help='Path to the train directory containing input images for phase 2')
     parser.add_argument('label_path', metavar='L', default='../dataset/train/labels/', help='Path to the train directory containing labels')
     parser.add_argument('--load-name', default=None, dest='load_name', help='Name of already saved model to load')
     parser.add_argument('--save-name', default='default-model', dest='save_name', help='Name to be given to trained model')
@@ -203,5 +209,6 @@ if __name__ == '__main__':
     if args.load_name == 'None':
         args.load_name = None
 
-    dataset = get_train_dataset(input_size=(256, 256,3), imgs=args.data_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
-    train(dataset, input_size=(256, 256, 3), load_name=args.load_name, save_name=args.save_name, epochs_p1=args.epochs_p1, epochs_p2=args.epochs_p2)
+    dataset1 = get_train_dataset(input_size=(384, 384,3), imgs=args.data1_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
+    dataset2 = get_train_dataset(input_size=(384, 384,3), imgs=args.data2_path, labels=args.label_path, batch_size=args.batch_size, cache=args.cache)
+    train(dataset1, dataset2, input_size=(384, 384, 3), load_name=args.load_name, save_name=args.save_name, epochs_p1=args.epochs_p1, epochs_p2=args.epochs_p2)

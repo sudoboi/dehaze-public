@@ -204,7 +204,7 @@ def build_vis_model(input_size=(256, 256, 3), load_path=None):
 
     y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
 
-    model = tf.keras.Model(inputs=x, outputs=[y_hat, x_decom[:,:,:,:3], x_decom[:,:,:,3]], name='FinalModel')
+    model = tf.keras.Model(inputs=x, outputs=[y_hat, x_decom[:,:,:,:3], x_decom[:,:,:,3], x_R_dehazed, x_I_illum], name='FinalModel')
 
     # Model building ends here
 

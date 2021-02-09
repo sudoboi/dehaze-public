@@ -92,16 +92,20 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
         
         img = img2arr(img)
 
-        [img, R_img, I_img] = model(img, training=False)
+        [img, R_img, I_img, R2_img, I2_img] = model(img, training=False)
 
         img = arr2img(img)
         R_img = arr2img(R_img)
         I_img = arr2img(I_img)
+        R2_img = arr2img(R2_img)
+        I2_img = arr2img(I2_img)
         
         # Save image
-        img.save(vis_data['dir']/('OUT_%s'%img_name))
-        R_img.save(vis_data['dir']/('OUT_R_%s'%img_name))
-        I_img.save(vis_data['dir']/('OUT_I_%s'%img_name))
+        img.save(vis_data['dir']/'out'/('%s'%img_name))
+        R_img.save(vis_data['dir']/'out'/('R_%s'%img_name))
+        I_img.save(vis_data['dir']/'out'/('I_%s'%img_name))
+        R2_img.save(vis_data['dir']/'out'/('R2_%s'%img_name))
+        I2_img.save(vis_data['dir']/'out'/('I2_%s'%img_name))
 
     print('Saved output images.')
 
@@ -112,5 +116,5 @@ if __name__ == '__main__':
     parser.add_argument('--load-name', default=None, dest='load_name', help='Name of already saved model to load')
     args = parser.parse_args()
 
-    vis_data = get_vis_data(input_size=(256, 256,3), imgs=args.data_path)
-    visualize(vis_data, input_size=(256, 256,3), load_name=args.load_name)
+    vis_data = get_vis_data(input_size=(384, 384, 3), imgs=args.data_path)
+    visualize(vis_data, input_size=(384, 384, 3), load_name=args.load_name)

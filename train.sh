@@ -1,17 +1,19 @@
 #!/bin/bash
 
-IMG_PATH="/media/harshan01/Seagate Backup Plus Drive/Sally_CV/image-dehazing/Dataset/Reside-V0/OTS/hazy" #"../SOTS/outdoor/hazy/" #"../dataset/train/imgs"
-LABEL_PATH="/media/harshan01/Seagate Backup Plus Drive/Sally_CV/image-dehazing/Dataset/Reside-V0/OTS/clear" #"../SOTS/outdoor/gt/" #"../dataset/train/labels"
+IMG1_PATH="/content/Dataset/Reside-Beta-subset/hazy/part1"
+IMG2_PATH="/content/Dataset/Reside-Beta-subset/hazy_dark/part1"
+LABEL_PATH="/content/Dataset/Reside-Beta-subset/clear/clear"
 
 MODEL_LOAD_NAME="None" # "None" (default) implies no model checkpoint loading is done. Use "default-model" as fallback
-MODEL_SAVE_NAME="reside-v0-train-1"
+MODEL_SAVE_NAME="Reside-Beta-subset-train-1"
 
 BATCH_SIZE=2
-EPOCHS_P1=1 # Phase 1 epochs: 25 (default)
-EPOCHS_P2=1 # Phase 2 epochs: 25 (default)
+EPOCHS_P1=25 # Phase 1 epochs: 25 (default)
+EPOCHS_P2=50 # Phase 2 epochs: 25 (default)
 
 python train.py \
-    "$IMG_PATH" \
+    "$IMG1_PATH" \
+    "$IMG2_PATH" \
     "$LABEL_PATH" \
     --load-name "$MODEL_LOAD_NAME" \
     --save-name "$MODEL_SAVE_NAME" \
