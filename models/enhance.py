@@ -36,7 +36,7 @@ def EnhanceNet(inputs=None, input_size=(256, 256, 4)):
 
     merged = tf.keras.layers.Concatenate()([deconv1_resized, deconv2_resized, deconv3])
     merged_conv = tf.keras.layers.Conv2D(filters=64, kernel_size=1, padding='same', activation=None)(merged)
-    output = tf.keras.layers.Conv2D(filters=1, kernel_size=3, padding='same', activation='tanh')(merged_conv)
+    output = tf.keras.layers.Conv2D(filters=1, kernel_size=3, padding='same', activation='sigmoid')(merged_conv)
 
     model = tf.keras.Model(inputs = inputs, outputs= output, name='EnhanceNet')
 

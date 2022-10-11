@@ -61,7 +61,7 @@ def decom_loss():
         loss_Decom = recon_loss_low + recon_loss_high + \
             0.001 * recon_loss_mutal_low + 0.001 * recon_loss_mutal_high + \
             0.1 * Ismooth_loss_low + 0.1 * Ismooth_loss_high + \
-            0.01 * equal_R_loss
+            0.0001 * equal_R_loss # 0.01
 
         return loss_Decom
 
@@ -75,13 +75,15 @@ def recon_loss(model_type='vgg', input_shape=(256, 256, 3), layers=None, weights
 
     def make_perceptual_loss_model(model_type=model_type, input_shape=input_shape, layers=layers, weights=weights):
         if model_type == 'vgg':
-            from tensorflow.keras.applications.vgg16 import VGG16
+            from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
             base_model = VGG16(include_top=False, weights='imagenet', input_shape=input_shape)
+            base_preprocess = tf.keras.applications.vgg16.preprocess_input
             if layers is None:
                 layers = [2, 5, 9]
         elif model_type == 'xception':
-            from tensorflow.keras.applications.xception import Xception
+            from tensorflow.keras.applications.xception import Xception, preprocess_input
             base_model = Xception(include_top=False, weights='imagenet', input_shape=input_shape)
+            base_preprocess = tf.keras.applications.xception.preprocess_input
             if layers is None:
                 layers = [19, 42, 62]
         else:
@@ -92,12 +94,12 @@ def recon_loss(model_type='vgg', input_shape=(256, 256, 3), layers=None, weights
         loss_model = tf.keras.Model(inputs=base_model.input, outputs=outputs)
         loss_model.trainable = False
 
-        return loss_model
+        return loss_model, base_preprocess
 
     def perceptual_loss(y_true, y_pred):
         # extract y true and predicted features
-        y_true_features = loss_model(y_true)
-        y_pred_features = loss_model(y_pred)
+        y_true_features = loss_model(base_preprocess(y_true * 255.))
+        y_pred_features = loss_model(base_preprocess(y_pred * 255.))
 
         # calculate weighted loss
         loss = weights[0] * tf.math.reduce_mean(tf.math.square(y_true - y_pred))
@@ -107,7 +109,7 @@ def recon_loss(model_type='vgg', input_shape=(256, 256, 3), layers=None, weights
         
         return loss
 
-    loss_model = make_perceptual_loss_model()
+    loss_model, base_preprocess = make_perceptual_loss_model()
     return perceptual_loss
 
 
@@ -204,7 +206,7 @@ def build_vis_model(input_size=(256, 256, 3), load_path=None):
 
     y_hat = tf.keras.layers.Lambda(lambda x: recon_mul(x[0], x[1]), name = 'ReconFinal') ((x_R_dehazed, x_I_illum))
 
-    model = tf.keras.Model(inputs=x, outputs=[y_hat, x_decom[:,:,:,:3], x_decom[:,:,:,3], x_R_dehazed, x_I_illum], name='FinalModel')
+    model = tf.keras.Model(inputs=x, outputs=[y_hat, x_decom[:,:,:,:3], x_decom[:,:,:,3], x_R_dehazed, x_I_illum[:,:,:,0]], name='FinalModel')
 
     # Model building ends here
 

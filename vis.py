@@ -8,7 +8,7 @@ import tensorflow as tf
 from PIL import Image
 
 from models import *
-from metrics import get_metric
+# from metrics import get_metric
 # from .metrics import get_metric_experimental
 
 
@@ -26,6 +26,10 @@ def get_vis_data(input_size=(256, 256, 3), imgs=None):
     
     if not isinstance(imgs, pathlib.Path):
         imgs = pathlib.Path(imgs)
+    
+    # Create output directory
+    if not os.path.exists(imgs.parent/'out'):
+        os.makedirs(imgs.parent/'out')
 
     data = {
         'dir': imgs,
@@ -33,7 +37,7 @@ def get_vis_data(input_size=(256, 256, 3), imgs=None):
     }
 
     # Take only input images
-    img_names = [img_name for img_name in list(os.listdir(imgs)) if not img_name.startswith('OUT_')]
+    img_names = [img_name for img_name in list(os.listdir(imgs)) if os.path.isfile(os.path.join(imgs, img_name))]
     for img_name in img_names:
         img = Image.open(imgs/img_name)
         data['data'].append((img, img.size, img_name))
@@ -70,7 +74,7 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
         # img = tf.keras.preprocessing.image.img_to_array(img)
         img = np.array(img)[:,:,:3].astype(float) / 255.
         # Remove alpha channel and convert to float
-        img = img*2 - 1;
+        # img = img*2 - 1;
         img = np.expand_dims(img, axis=0)
         return img
 
@@ -81,7 +85,7 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
         img = img.numpy()
         img = np.squeeze(img, axis=0)
         # img = tf.keras.preprocessing.image.array_to_img(img)
-        img = (img + 1) / 2.
+        # img = (img + 1) / 2.
         img = np.clip(img * 255., 0., 255.).astype('uint8')
         img = Image.fromarray(img)
         img = img.resize(orig_shape)
@@ -101,11 +105,11 @@ def visualize(vis_data, input_size=(256, 256, 3), load_name=None):
         I2_img = arr2img(I2_img)
         
         # Save image
-        img.save(vis_data['dir']/'out'/('%s'%img_name))
-        R_img.save(vis_data['dir']/'out'/('R_%s'%img_name))
-        I_img.save(vis_data['dir']/'out'/('I_%s'%img_name))
-        R2_img.save(vis_data['dir']/'out'/('R2_%s'%img_name))
-        I2_img.save(vis_data['dir']/'out'/('I2_%s'%img_name))
+        img.save(vis_data['dir'].parent/'out'/('%s'%img_name))
+        # R_img.save(vis_data['dir']/'out'/('R_%s'%img_name))
+        # I_img.save(vis_data['dir']/'out'/('I_%s'%img_name))
+        # R2_img.save(vis_data['dir']/'out'/('R2_%s'%img_name))
+        # I2_img.save(vis_data['dir']/'out'/('I2_%s'%img_name))
 
     print('Saved output images.')
 
@@ -116,5 +120,7 @@ if __name__ == '__main__':
     parser.add_argument('--load-name', default=None, dest='load_name', help='Name of already saved model to load')
     args = parser.parse_args()
 
-    vis_data = get_vis_data(input_size=(384, 384, 3), imgs=args.data_path)
-    visualize(vis_data, input_size=(384, 384, 3), load_name=args.load_name)
+    input_size=(512, 512, 3)
+
+    vis_data = get_vis_data(input_size=input_size, imgs=args.data_path)
+    visualize(vis_data, input_size=input_size, load_name=args.load_name)

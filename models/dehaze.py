@@ -113,7 +113,7 @@ def DehazeNet(inputs=None, pretrained_weights=None, input_size=(256,256,3)):
 
     dehaze = tf.keras.layers.Concatenate()([x1010, x1020, x1030, x1040, conv9])
     dehaze = tf.keras.layers.Conv2D(filters=3, kernel_size=3, strides=1, padding='same')(dehaze)
-    dehaze = tf.keras.layers.Activation('tanh')(dehaze)
+    dehaze = tf.keras.layers.Activation('sigmoid')(dehaze)
 
     out = dehaze
     
